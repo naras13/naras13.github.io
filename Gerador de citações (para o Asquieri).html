@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Citações por DOI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e0f7fa; /* Azul claro */
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #00796b; /* Verde escuro */
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            font-weight: bold;
+        }
+        h2 {
+            color: #004d40; /* Verde ainda mais escuro */
+            text-align: center;
+            font-style: italic;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+        form {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            color: #00796b;
+        }
+        input {
+            padding: 12px;
+            border: 1px solid #4db6ac;
+            border-radius: 5px;
+            font-size: 16px;
+            width: calc(100% - 24px);
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            border-color: #004d40;
+            outline: none;
+        }
+        button {
+            background-color: #00796b;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        button:hover {
+            background-color: #004d40;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        #citation {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f1f8e9; /* Verde suave */
+            border-radius: 10px;
+            border-left: 5px solid #4caf50;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: bold;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        #inTextCitation {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff9c4;
+            border-radius: 5px;
+            font-style: italic;
+            border-left: 5px solid #fbc02d;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Gerador de Citações por DOI</h1>
+<h2 id="greeting"></h2>
+
+<form id="citationForm">
+    <label for="doi">Insira o link DOI:</label>
+    <input type="text" id="doi" name="doi" placeholder="Ex: https://doi.org/10.1590/S0101-20612000000200012" required>
+    <div class="button-container">
+        <button type="button" onclick="generateCitation('asquieri')">Gerar citação Asquieri</button>
+        <button type="button" onclick="generateCitation('abnt')">Gerar citação comum</button>
+    </div>
+</form>
+
+<p id="citation"></p>
+<p id="inTextCitation"></p>
+<p class="error" id="error"></p>
+
+<script>
+    // Função para saudar o visitante com frases criativas sobre o andamento do relatório
+    function greetUser() {
+        const hour = new Date().getHours();
+        const greetings = [
+            "Preparado para encarar mais uma página?",
+            "Hoje é um ótimo dia para conquistas científicas!",
+            "Relatório em progresso! Vamos deixar tudo impecável.",
+            "Não desanime! Cada linha é uma vitória a mais.",
+            "Desafios no relatório? Nada que você não possa vencer!"
+        ];
+        const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+        const timeGreeting = hour < 12 ? 'Bom dia!' : (hour < 18 ? 'Boa tarde!' : 'Boa noite!');
+        document.getElementById('greeting').textContent = `${timeGreeting} ${greeting}`;
+    }
+
+    async function generateCitation(type) {
+        var doiInput = document.getElementById("doi").value;
+        var errorElement = document.getElementById("error");
+        var citationElement = document.getElementById("citation");
+        var inTextCitationElement = document.getElementById("inTextCitation");
+        var doi = doiInput.replace(/^https?:\/\/doi\.org\//, '');
+
+        errorElement.textContent = '';
+        citationElement.style.display = 'none';
+        inTextCitationElement.style.display = 'none';
+
+        if (!doi) {
+            errorElement.textContent = "Por favor, insira um DOI válido.";
+            return;
+        }
+
+        try {
+            let data = await fetchCrossRef(doi);
+            if (!data) {
+                throw new Error("DOI não encontrado na CrossRef.");
+            }
+
+            let authors = formatAuthors(data.message.author, type);
+            let title = data.message.title ? data.message.title[0] : 'Título indisponível';
+            let journal = data.message['container-title'] ? data.message['container-title'][0] : 'Revista indisponível';
+            let volume = data.message.volume ? `v.${data.message.volume}` : '';
+            let issue = data.message.issue ? `n.${data.message.issue}` : '';
+            let pages = data.message.page ? `p.${data.message.page}` : '';
+            let year = data.message.published && data.message.published['date-parts'] ? data.message.published['date-parts'][0][0] : 'Ano indisponível';
+            let doiLink = `<a href="https://doi.org/${doi}" style="color: #00796b;">https://doi.org/${doi}</a>`;
+
+            let citation = '';
+            let inTextCitation = '';
+
+            if (type === 'asquieri') {
+                citation = `${authors} ${title}. <strong>${journal}</strong>, ${volume}, ${issue}, ${pages}, ${year}. ${doiLink}`;
+                inTextCitation = formatInTextCitation(data.message.author, year);
+            } else {
+                citation = `${authors} ${title}. <strong>${journal}</strong>, ${volume}, ${pages}, jan. ${year}. ${doiLink}`;
+                inTextCitation = formatInTextCitation(data.message.author, year);
+            }
+
+            citationElement.innerHTML = citation;
+            inTextCitationElement.innerHTML = inTextCitation;
+
+            citationElement.style.display = 'block';
+            inTextCitationElement.style.display = 'block';
+
+        } catch (error) {
+            errorElement.textContent = "Erro ao gerar a citação: " + error.message;
+        }
+    }
+
+    async function fetchCrossRef(doi) {
+        try {
+            let response = await fetch(`https://api.crossref.org/works/${doi}`);
+            if (response.status === 200) {
+                return await response.json();
+            }
+            return null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function formatAuthors(authors, type) {
+        if (!authors || authors.length === 0) {
+            return "Autores indisponíveis.";
+        }
+
+        let formattedAuthors = authors.map(author => {
+            let surname = author.family ? author.family.toUpperCase() : '';
+            let initials = author.given ? author.given.split(' ').map(n => n[0].toUpperCase()).join('.') : '';
+
+            if (type === 'asquieri') {
+                return `${surname}, ${initials}.`;
+            } else {
+                return `${surname}, ${initials}. et al.`;
+            }
+        });
+
+        return type === 'asquieri' ? formattedAuthors.join('; ') : formattedAuthors[0];
+    }
+
+    function formatInTextCitation(authors, year) {
+        if (!authors || authors.length === 0) {
+            return "Autores indisponíveis.";
+        }
+
+        if (authors.length === 1) {
+            return `${authors[0].family} (${year})`;
+        } else if (authors.length === 2) {
+            return `${authors[0].family} & ${authors[1].family} (${year})`;
+        } else {
+            return `${authors[0].family} et al. (${year})`;
+        }
+    }
+
+    greetUser();
+</script>
+</body>
+</html>
